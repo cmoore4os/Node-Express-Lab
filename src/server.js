@@ -1,43 +1,86 @@
-const express = require('express');
 const bodyParser = require('body-parser');
+const express = require('express');
 
-// globals
-const server = express();
 const STATUS_USER_ERROR = 422;
 
-// give each post a id number
-let idNum = 0;
-// post = {title: "Post Title", contents: "Post Contents" id: idNum}
+// This array of posts persists in memory across requests. Feel free
+// to change this to a let binding if you need to reassign it.
 const posts = [];
+let nextId = 1;
 
-// Use
+function getNextId() {
+  return nextId++;
+}
+
+const server = express();
 // to enable parsing of json bodies for post requests
 server.use(bodyParser.json());
 
 // TODO: your code to handle requests
-
-// Get
-server.get('/api/posts', (req, res) => {
-  console.log(req.query);
-  res.status(200).json(posts);
+server.get('/posts', (req, res) => {
+  // req.query.term
+  const searchTerm = req.query.term;
+  if (searchTerm) {
+    // filter the collection
+    const filteredPosts = posts.filter(post => {
+      return (
+        post.title.includes(searchTerm) || post.contents.includes(searchTerm)
+      );
+    });
+    res.status(200).json(filteredPosts);
+  } else {
+    res.status(200).json(posts);
+  }
 });
 
-server.get('/api/posts/:id', (req, res) => {
-  const post = posts.find(f => f.id === req.params.id);
-  res.status(200).json(post);
-});
-// Post
-server.post('/api/posts', (req, res) => {
-  console.log(req.body);
-  const post = req.body;
-  post.id = idNum++;
-  posts.push(post);
-  res.status(201).json(posts);
-});
-// Put
+server.post('/posts', (req, res) => {
+  const { title, contents } = req.body;
 
-// Delete
+  if (title && contents) {
+    const id = getNextId();
+    const post = { ...req.body, id };
+    posts.push(post);
+    res.status(200).json(post);
+  } else {
+    res
+      .status(STATUS_USER_ERROR)
+      .json({ error: 'Please provide title and contents.' });
+  }
+});
 
-// server.listen(port, () => console.log(`Server running  port ${port}`));
+server.put('/posts', (req, res) => {
+  const { id, title, contents } = req.body;
+
+  if (id && title && contents) {
+    const post = posts.find(p => p.id === Number(id));
+    if (post) {
+      Object.assign(post, req.body);
+      res.status(200).json(post);
+    } else {
+      res.status(STATUS_USER_ERROR).json({ error: 'The post does not exist.' });
+    }
+  } else {
+    res
+      .status(STATUS_USER_ERROR)
+      .json({ error: 'Please provide all the information.' });
+  }
+});
+
+server.delete('/posts', (req, res) => {
+  const { id } = req.body;
+
+  if (id) {
+    const postIndex = posts.findIndex(p => p.id === Number(id));
+
+    if (postIndex > -1) {
+      posts.splice(postIndex, 1);
+      res.status(200).json({ success: true });
+    } else {
+      res.status(STATUS_USER_ERROR).json({ error: 'The post does not exist.' });
+    }
+  } else {
+    res.status(STATUS_USER_ERROR).json({ error: 'Please provide a valid id.' });
+  }
+});
 
 module.exports = { posts, server };
